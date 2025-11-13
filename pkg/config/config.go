@@ -70,6 +70,7 @@ func Create(override *Config) error {
 		Scopes:               []string{"channel:moderate"},
 		EnableRequestLogging: false,
 		RedirectUri:          "https://example.com",
+		ClientID:             "unknown",
 	}
 
 	if override != nil {
