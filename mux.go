@@ -49,7 +49,11 @@ func (b *Bot) initMux(m *chi.Mux) {
 
 	m.Get("/healthcheck", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			http.Error(w, "Internal Server Error", 500)
+			b.logger.Fatal().Str("Function", "initMux").Err(err)
+		}
 	})
 }
 
