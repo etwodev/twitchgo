@@ -34,7 +34,7 @@ type Bot struct {
 // Example:
 //
 //	bot := twitchgo.New()
-func New(eng engine.EventEngine, clientSecret string, clientId string) *Bot {
+func New(eng engine.EventEngine, clientSecret string) *Bot {
 	err := c.New()
 	if err != nil {
 		baseLogger := zerolog.New(os.Stdout).With().Timestamp().Str("Group", "twitchgo").Logger()
@@ -53,7 +53,7 @@ func New(eng engine.EventEngine, clientSecret string, clientId string) *Bot {
 	logger := log.NewZeroLogger(baseLogger)
 
 	opts := &helix.Options{
-		ClientID:     clientId,
+		ClientID:     c.ClientID(),
 		ClientSecret: clientSecret,
 	}
 
