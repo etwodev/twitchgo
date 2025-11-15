@@ -1,8 +1,7 @@
-package engine
+package twitchgo
 
 type Method string
 type Status string
-type SubscriptionType string
 
 const (
 	Webhook   Method = "webhook"
@@ -10,6 +9,4 @@ const (
 
 	Enabled  Status = "enabled"
 	Disabled Status = "disabled"
-
-	ChannelChatMessage SubscriptionType = "channel.chat.message"
 )

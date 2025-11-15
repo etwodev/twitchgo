@@ -2,31 +2,26 @@ package twitchgo
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
-	c "github.com/Etwodev/twitchgo/pkg/config"
-	"github.com/Etwodev/twitchgo/pkg/engine"
+	"github.com/Etwodev/twitchgo/pkg/config"
 	"github.com/Etwodev/twitchgo/pkg/log"
 	"github.com/nicklaw5/helix/v2"
 	"github.com/rs/zerolog"
 )
 
-// Bot represents an HTTP server with support for
 // configuration, middleware, routers, and structured logging.
 type Bot struct {
-	clientSecret string
-	logger       log.Logger
-	instance     *http.Server
-	helix        *helix.Client
-	idle         chan struct{}
-	webhook      *engine.WebhookClient
-	engine       engine.EventEngine
+	logger   log.Logger
+	engine   EventEngine
+	cache    *dedupeCache
+	instance *http.Server
+	helix    *helix.Client
+	idle     chan struct{}
 }
 
 // New creates a new Bot instance with configuration loaded
@@ -37,14 +32,14 @@ type Bot struct {
 // Example:
 //
 //	bot := twitchgo.New()
-func New(eng engine.EventEngine, clientSecret string) *Bot {
-	err := c.New()
+func New(engine EventEngine) *Bot {
+	err := config.New()
 	if err != nil {
 		baseLogger := zerolog.New(os.Stdout).With().Timestamp().Str("Group", "twitchgo").Logger()
 		baseLogger.Fatal().Str("Function", "New").Err(err).Msg("Failed to load config")
 	}
 
-	level, err := zerolog.ParseLevel(c.LogLevel())
+	level, err := zerolog.ParseLevel(config.LogLevel())
 	if err != nil {
 		level = zerolog.InfoLevel
 	}
@@ -56,8 +51,8 @@ func New(eng engine.EventEngine, clientSecret string) *Bot {
 	logger := log.NewZeroLogger(baseLogger)
 
 	opts := &helix.Options{
-		ClientID:     c.ClientID(),
-		ClientSecret: clientSecret,
+		ClientID:     config.ClientID(),
+		ClientSecret: os.Getenv("CLIENT_SECRET"),
 	}
 
 	client, err := helix.NewClient(opts)
@@ -65,14 +60,11 @@ func New(eng engine.EventEngine, clientSecret string) *Bot {
 		logger.Fatal().Str("Function", "New").Err(err).Msg("Failed to setup helix client")
 	}
 
-	webhook := engine.NewWebHookClient(eng, clientSecret)
-
 	return &Bot{
-		engine:       eng,
-		logger:       logger,
-		helix:        client,
-		webhook:      webhook,
-		clientSecret: clientSecret,
+		engine: engine,
+		logger: logger,
+		helix:  client,
+		cache:  newDedupeCache(5 * time.Minute),
 	}
 }
 
@@ -86,12 +78,15 @@ func (b *Bot) Logger() log.Logger {
 	return b.logger
 }
 
-// Helix returns the helix client instance used by the bot.
+// Helix returns the helix instance used by the bot.
 //
-// Example
+// Example:
 //
-// helix := bot.Helix()
-// helix.
+//	helix := bot.Helix()
+//	helix.GetUser...
+func (b *Bot) Helix() *helix.Client {
+	return b.helix
+}
 
 // Start launches the HTTP server, applying configured middleware and routers,
 // and listens for termination signals for graceful shutdown.
@@ -103,18 +98,18 @@ func (b *Bot) Logger() log.Logger {
 //	bot.Start()
 func (b *Bot) Start() {
 	b.instance = &http.Server{
-		Addr:           fmt.Sprintf("%s:%s", c.Address(), c.Port()),
+		Addr:           fmt.Sprintf("%s:%s", config.Address(), config.Port()),
 		Handler:        b.handler(),
-		ReadTimeout:    time.Duration(c.ReadTimeout()) * time.Second,
-		WriteTimeout:   time.Duration(c.WriteTimeout()) * time.Second,
-		IdleTimeout:    time.Duration(c.IdleTimeout()) * time.Second,
-		MaxHeaderBytes: c.MaxHeaderBytes(),
+		ReadTimeout:    time.Duration(config.ReadTimeout()) * time.Second,
+		WriteTimeout:   time.Duration(config.WriteTimeout()) * time.Second,
+		IdleTimeout:    time.Duration(config.IdleTimeout()) * time.Second,
+		MaxHeaderBytes: config.MaxHeaderBytes(),
 	}
 
 	b.logger.Debug().
-		Str("Port", c.Port()).
-		Str("Address", c.Address()).
-		Bool("Experimental", c.Experimental()).
+		Str("Port", config.Port()).
+		Str("Address", config.Address()).
+		Bool("Experimental", config.Experimental()).
 		Msg("Server starting")
 
 	b.idle = make(chan struct{})
@@ -123,7 +118,7 @@ func (b *Bot) Start() {
 		signal.Notify(sigint, os.Interrupt)
 		<-sigint
 
-		timeout := time.Duration(c.ShutdownTimeout()) * time.Second
+		timeout := time.Duration(config.ShutdownTimeout()) * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
@@ -133,9 +128,9 @@ func (b *Bot) Start() {
 		close(b.idle)
 	}()
 
-	if c.EnableTLS() {
+	if config.EnableTLS() {
 		b.logger.Info().Msg("Starting HTTPS server")
-		if err := b.instance.ListenAndServeTLS(c.TLSCertFile(), c.TLSKeyFile()); err != nil && err != http.ErrServerClosed {
+		if err := b.instance.ListenAndServeTLS(config.TLSCertFile(), config.TLSKeyFile()); err != nil && err != http.ErrServerClosed {
 			b.logger.Fatal().Err(err).Msg("HTTPS server failed")
 		}
 	} else {
@@ -148,17 +143,8 @@ func (b *Bot) Start() {
 	<-b.idle
 
 	b.logger.Debug().
-		Str("Port", c.Port()).
-		Str("Address", c.Address()).
-		Bool("Experimental", c.Experimental()).
+		Str("Port", config.Port()).
+		Str("Address", config.Address()).
+		Bool("Experimental", config.Experimental()).
 		Msg("Server stopped")
-}
-
-// generateState creates a base64url-encoded random state.
-func generateState(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
 }
