@@ -10,18 +10,42 @@ import (
 
 	"github.com/Etwodev/twitchgo/pkg/config"
 	"github.com/Etwodev/twitchgo/pkg/log"
+	"github.com/Etwodev/twitchgo/pkg/middleware"
+	"github.com/Etwodev/twitchgo/pkg/router"
 	"github.com/nicklaw5/helix/v2"
 	"github.com/rs/zerolog"
 )
 
 // configuration, middleware, routers, and structured logging.
 type Bot struct {
-	logger   log.Logger
-	engine   EventEngine
-	cache    *dedupeCache
-	instance *http.Server
-	helix    *helix.Client
-	idle     chan struct{}
+	logger      log.Logger
+	engine      EventEngine
+	cache       *dedupeCache
+	instance    *http.Server
+	helix       *helix.Client
+	middlewares []middleware.Middleware
+	routers     []router.Router
+	idle        chan struct{}
+}
+
+// LoadRouter appends one or more routers to the server's router list.
+//
+// Example:
+//
+//	srv.LoadRouter([]router.Router{myRouter1, myRouter2})
+func (b *Bot) LoadRouter(routers []router.Router) {
+	b.routers = append(b.routers, routers...)
+}
+
+// LoadMiddleware appends one or more middleware instances to the server's middleware chain.
+//
+// Middleware registered here will be applied globally to all routers.
+//
+// Example:
+//
+//	srv.LoadMiddleware([]middleware.Middleware{corsMw, loggingMw})
+func (b *Bot) LoadMiddleware(middlewares []middleware.Middleware) {
+	b.middlewares = append(b.middlewares, middlewares...)
 }
 
 // New creates a new Bot instance with configuration loaded
