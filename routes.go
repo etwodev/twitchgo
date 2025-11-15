@@ -15,8 +15,8 @@ func (b *Bot) Routes(m *chi.Mux) {
 
 	m.Post("/webhook/callback", b.Handle)
 	m.Route("/auth", func(r chi.Router) {
-		m.Get("/login", HandleLogin)
-		m.Get("/callback", helpers.SimpleBasicAuth(
+		r.Get("/login", HandleLogin)
+		r.Get("/callback", helpers.SimpleBasicAuth(
 			os.Getenv("CALLBACK_USER"),
 			os.Getenv("CALLBACK_PASS"),
 			b.HandleCallback,
