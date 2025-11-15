@@ -2,6 +2,8 @@ package twitchgo
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +17,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Server represents an HTTP server with support for
+// Bot represents an HTTP server with support for
 // configuration, middleware, routers, and structured logging.
 type Bot struct {
 	clientSecret string
@@ -24,6 +26,7 @@ type Bot struct {
 	helix        *helix.Client
 	idle         chan struct{}
 	webhook      *engine.WebhookClient
+	engine       engine.EventEngine
 }
 
 // New creates a new Bot instance with configuration loaded
@@ -65,6 +68,7 @@ func New(eng engine.EventEngine, clientSecret string) *Bot {
 	webhook := engine.NewWebHookClient(eng, clientSecret)
 
 	return &Bot{
+		engine:       eng,
 		logger:       logger,
 		helix:        client,
 		webhook:      webhook,
@@ -111,7 +115,7 @@ func (b *Bot) Start() {
 		Str("Port", c.Port()).
 		Str("Address", c.Address()).
 		Bool("Experimental", c.Experimental()).
-		Msg("Server started")
+		Msg("Server starting")
 
 	b.idle = make(chan struct{})
 	go func() {
@@ -148,4 +152,13 @@ func (b *Bot) Start() {
 		Str("Address", c.Address()).
 		Bool("Experimental", c.Experimental()).
 		Msg("Server stopped")
+}
+
+// generateState creates a base64url-encoded random state.
+func generateState(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
