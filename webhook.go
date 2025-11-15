@@ -1,4 +1,4 @@
-package engine
+package twitchgo
 
 import (
 	"context"
@@ -6,23 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/nicklaw5/helix/v2"
 )
 
-type WebhookClient struct {
-	engine EventEngine
-	cache  *dedupeCache
-	secret string
-}
-
-func NewWebHookClient(engine EventEngine, secret string) *WebhookClient {
-	return &WebhookClient{engine: engine, secret: secret, cache: newDedupeCache(5 * time.Minute)}
-}
-
-func (wc *WebhookClient) Handle(w http.ResponseWriter, r *http.Request) {
+func (b *Bot) Handle(w http.ResponseWriter, r *http.Request) {
 	msgID := r.Header.Get("Twitch-Eventsub-Message-Id")
 	msgType := r.Header.Get("Twitch-Eventsub-Message-Type")
 	msgTS := r.Header.Get("Twitch-Eventsub-Message-Timestamp")
@@ -45,21 +36,21 @@ func (wc *WebhookClient) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg := BuildHMACMessage(msgID, msgTS, body)
-	computed := ComputeHMAC([]byte(wc.secret), msg)
+	computed := ComputeHMAC([]byte(os.Getenv("CLIENT_SECRET")), msg)
 	if !VerifyHMAC(computed, msgSig) {
 		http.Error(w, "invalid signature", http.StatusForbidden)
 		return
 	}
 
-	if wc.cache.Exists(msgID) {
+	if b.cache.Exists(msgID) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	wc.cache.Add(msgID)
+	b.cache.Add(msgID)
 	switch msgType {
 	case "notification":
-		err := wc.processNotification(body)
+		err := processNotification(r.Context(), body, b)
 		if err != nil {
 			http.Error(w, "failed to process notification", http.StatusBadRequest)
 			return
@@ -85,7 +76,8 @@ func (wc *WebhookClient) Handle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (wc *WebhookClient) processNotification(body []byte) error {
+// processNotification processes a given notification for a given body
+func processNotification(ctx context.Context, body []byte, b *Bot) error {
 	var wrapper struct {
 		Subscription Subscription[any] `json:"subscription"`
 		Event        json.RawMessage   `json:"event"`
@@ -95,17 +87,16 @@ func (wc *WebhookClient) processNotification(body []byte) error {
 		return err
 	}
 
-	ctx := context.Background()
 	switch strings.ToLower(wrapper.Subscription.Type + ".v" + wrapper.Subscription.Version) {
 	case string(ChannelChatMessage):
 		var event Response[helix.EventSubChannelChatMessageEvent, helix.EventSubCondition]
 		if err := json.Unmarshal(body, &event); err != nil {
 			return err
 		}
-		go wc.engine.OnChannelChatMessage(ctx, event)
+
+		go b.engine.OnChannelChatMessage(ctx, b.helix, event)
 		return nil
 	default:
 		return fmt.Errorf("unsupported subscription type: %s", wrapper.Subscription.Type)
 	}
 }
-
