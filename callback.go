@@ -11,7 +11,7 @@ import (
 	"github.com/Etwodev/twitchgo/pkg/config"
 )
 
-func HandleCallback(w http.ResponseWriter, r *http.Request) {
+func (b *Bot) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	if state == "" {
 		http.Error(w, "missing state", http.StatusBadRequest)
@@ -66,6 +66,10 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	b.helix.SetUserAccessToken(body.AccessToken)
+	b.helix.SetRefreshToken(body.RefreshToken)
+
+	b.engine.OnBotLogin(r.Context(), b.helix)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(fmt.Sprintf("Access token stored successfully. Expires in %d seconds.", body.ExpiresIn)))
 }

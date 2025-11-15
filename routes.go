@@ -19,7 +19,7 @@ func (b *Bot) Routes(m *chi.Mux) {
 		m.Get("/callback", helpers.SimpleBasicAuth(
 			os.Getenv("CALLBACK_USER"),
 			os.Getenv("CALLBACK_PASS"),
-			HandleCallback,
+			b.HandleCallback,
 		))
 	})
 
