@@ -73,7 +73,16 @@ func New(engine EventEngine) *Bot {
 	baseLogger := zerolog.New(format).With().Timestamp().Str("Group", "twitchgo").Logger()
 	logger := log.NewZeroLogger(baseLogger)
 
+	transport := &HelixRefreshTransport{
+		Base: http.DefaultTransport,
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
 	opts := &helix.Options{
+		HTTPClient:   httpClient,
 		ClientID:     config.ClientID(),
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
 	}
@@ -82,6 +91,8 @@ func New(engine EventEngine) *Bot {
 	if err != nil {
 		logger.Fatal().Str("Function", "New").Err(err).Msg("Failed to setup helix client")
 	}
+
+	transport.Client = client
 
 	return &Bot{
 		engine: engine,
@@ -134,6 +145,9 @@ func (b *Bot) Start() {
 		Str("Address", config.Address()).
 		Bool("Experimental", config.Experimental()).
 		Msg("Server starting")
+
+	// NOTE: Investigate what sort of context should be used here
+	b.engine.OnBotStart(context.Background(), b.helix)
 
 	b.idle = make(chan struct{})
 	go func() {
