@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type ChallengeRequest struct {
@@ -29,10 +30,18 @@ func ComputeHMAC(secret []byte, message []byte) string {
 }
 
 // VerifyHMAC performs a constant-time comparison between the computed HMAC and the provided signature.
-func VerifyHMAC(computedHex, receivedHex string) bool {
+func VerifyHMAC(computedHex, receivedHeader string) bool {
+	const prefix = "sha256="
+	if !strings.HasPrefix(receivedHeader, prefix) {
+		return false
+	}
+
+	receivedHex := receivedHeader[len(prefix):]
+
 	if len(computedHex) != len(receivedHex) {
 		return false
 	}
+
 	return subtle.ConstantTimeCompare([]byte(computedHex), []byte(receivedHex)) == 1
 }
 
