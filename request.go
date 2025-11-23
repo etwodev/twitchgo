@@ -6,26 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+
+	"github.com/nicklaw5/helix/v2"
 )
 
 // Request represents an EventSub subscription request.
 //
 // See: https://dev.twitch.tv/docs/eventsub/eventsub-reference for more information.
 type Request[T any] struct {
-	Type      SubscriptionType `json:"type"`
-	Version   string           `json:"version"`
-	Condition T                `json:"condition"`
-	Transport Transport        `json:"transport"`
-}
-
-type Transport struct {
-	Method         Method     `json:"method"`
-	Secret         *string    `json:"secret,omitempty"`
-	Callback       *string    `json:"callback,omitempty"`
-	SessionID      *string    `json:"session_id,omitempty"`
-	ConnectedAt    *time.Time `json:"connected_at,omitempty"`
-	DisconnectedAt *time.Time `json:"disconnected_at,omitempty"`
+	Type      SubscriptionType        `json:"type"`
+	Version   string                  `json:"version"`
+	Condition T                       `json:"condition"`
+	Transport helix.EventSubTransport `json:"transport"`
 }
 
 func CreateEventSubSubscription[T any](
