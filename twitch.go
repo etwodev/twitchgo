@@ -2,11 +2,8 @@ package twitchgo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"time"
@@ -74,41 +71,11 @@ func New(engine EventEngine) *Bot {
 
 	format := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "2006-01-02T15:04:05"}
 	baseLogger := zerolog.New(format).With().Timestamp().Str("Group", "twitchgo").Logger()
-
 	logger := log.NewZeroLogger(baseLogger)
 
-	data := url.Values{}
-	data.Set("client_id", config.ClientID())
-	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
-	data.Set("grant_type", "client_credentials")
-	resp, err := http.PostForm("https://id.twitch.tv/oauth2/token", data)
-	if err != nil {
-		logger.Fatal().Str("Function", "New").Err(err).Msg("Failed to obtain app token")
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logger.Fatal().Str("Function", "New").Err(err).Msg("Failed to read response body")
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		logger.Fatal().Str("Function", "New").Msg(fmt.Sprintf("Failed, status returned %d", resp.StatusCode))
-	}
-
-	var body struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-
-	if err := json.Unmarshal(bodyBytes, &body); err != nil {
-		logger.Fatal().Str("Function", "New").Err(err).Msg("Failed to marshal body")
-	}
-
 	opts := &helix.Options{
-		AppAccessToken: body.AccessToken,
-		ClientID:       config.ClientID(),
-		ClientSecret:   os.Getenv("CLIENT_SECRET"),
+		ClientID:     config.ClientID(),
+		ClientSecret: os.Getenv("CLIENT_SECRET"),
 	}
 
 	client, err := helix.NewClient(opts)
