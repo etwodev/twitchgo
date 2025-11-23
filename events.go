@@ -9,7 +9,7 @@ import (
 type SubscriptionType string
 
 const (
-	ChannelChatMessage SubscriptionType = "channel.chat.message"
+	ChannelChatMessage SubscriptionType = "channel.chat.message.v1"
 )
 
 type EventEngine interface {
