@@ -74,7 +74,8 @@ func New(engine EventEngine) *Bot {
 	logger := log.NewZeroLogger(baseLogger)
 
 	transport := &HelixRefreshTransport{
-		Base: http.DefaultTransport,
+		Base:  http.DefaultTransport,
+		Event: engine,
 	}
 
 	httpClient := &http.Client{
